@@ -5,7 +5,7 @@
     <title>less code more fun</title>
 </head>
 <body>
-<canvas id="canvas"></canvas>
+<canvas id="canvas" width="400" height="400"></canvas>
 <script id="3d-vertex-shader" type="x-shader/x-vertex">
 uniform mat4 u_worldViewProjection;
 uniform vec3 u_lightWorldPos;
@@ -80,20 +80,20 @@ void main() {
     "use strict";
 
     function main() {
-        var canvas = document.getElementById("canvas");
-        var gl = canvas.getContext("webgl");
+        const canvas = document.getElementById("canvas");
+        const gl = canvas.getContext("webgl");
         if (!gl) {
             return;
         }
 
-        var buffers = window.primitives.createSphereBuffers(gl, 10, 48, 24);
+        const buffers = window.primitives.createSphereBuffers(gl, 10, 48, 24);
 
         // setup GLSL program
-        var program = webglUtils.createProgramFromScripts(gl, ["3d-vertex-shader", "3d-fragment-shader"]);
-        var uniformSetters = webglUtils.createUniformSetters(gl, program);
-        var attribSetters  = webglUtils.createAttributeSetters(gl, program);
+        const program = webglUtils.createProgramFromScripts(gl, ["3d-vertex-shader", "3d-fragment-shader"]);
+        const uniformSetters = webglUtils.createUniformSetters(gl, program);
+        const attribSetters  = webglUtils.createAttributeSetters(gl, program);
 
-        var attribs = {
+        const attribs = {
             a_position: { buffer: buffers.position, numComponents: 3, },
             a_normal:   { buffer: buffers.normal,   numComponents: 3, },
             a_texcoord: { buffer: buffers.texcoord, numComponents: 2, },
@@ -103,23 +103,23 @@ void main() {
             return d * Math.PI / 180;
         }
 
-        var cameraAngleRadians = degToRad(0);
-        var fieldOfViewRadians = degToRad(60);
-        var cameraHeight = 50;
+        const cameraAngleRadians = degToRad(0);
+        const fieldOfViewRadians = degToRad(60);
+        const cameraHeight = 50;
 
-        var uniformsThatAreTheSameForAllObjects = {
+        const uniformsThatAreTheSameForAllObjects = {
             u_lightWorldPos:         [-50, 30, 100],
             u_viewInverse:           m4.identity(),
             u_lightColor:            [1, 1, 1, 1],
         };
 
-        var uniformsThatAreComputedForEachObject = {
+        const uniformsThatAreComputedForEachObject = {
             u_worldViewProjection:   m4.identity(),
             u_world:                 m4.identity(),
             u_worldInverseTranspose: m4.identity(),
         };
 
-        var rand = function(min, max) {
+        const rand = function(min, max) {
             if (max === undefined) {
                 max = min;
                 min = 0;
@@ -127,20 +127,20 @@ void main() {
             return min + Math.random() * (max - min);
         };
 
-        var randInt = function(range) {
+        const randInt = function(range) {
             return Math.floor(Math.random() * range);
         };
 
-        var textures = [
+        const textures = [
             textureUtils.makeStripeTexture(gl, { color1: "#FFF", color2: "#CCC", }),
             textureUtils.makeCheckerTexture(gl, { color1: "#FFF", color2: "#CCC", }),
             textureUtils.makeCircleTexture(gl, { color1: "#FFF", color2: "#CCC", }),
         ];
 
-        var objects = [];
-        var numObjects = 300;
-        var baseColor = rand(240);
-        for (var ii = 0; ii < numObjects; ++ii) {
+        let objects = [];
+        const numObjects = 300;
+        const baseColor = rand(240);
+        for (let ii = 0; ii < numObjects; ++ii) {
             objects.push({
                 radius: rand(150),
                 xRotation: rand(Math.PI * 2),
@@ -173,20 +173,20 @@ void main() {
             gl.enable(gl.DEPTH_TEST);
 
             // Compute the projection matrix
-            var aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
-            var projectionMatrix =
+            const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
+            const projectionMatrix =
                 m4.perspective(fieldOfViewRadians, aspect, 1, 2000);
 
             // Compute the camera's matrix using look at.
-            var cameraPosition = [0, 0, 100];
-            var target = [0, 0, 0];
-            var up = [0, 1, 0];
-            var cameraMatrix = m4.lookAt(cameraPosition, target, up, uniformsThatAreTheSameForAllObjects.u_viewInverse);
+            const cameraPosition = [0, 0, 100];
+            const target = [0, 0, 0];
+            const up = [0, 1, 0];
+            const cameraMatrix = m4.lookAt(cameraPosition, target, up, uniformsThatAreTheSameForAllObjects.u_viewInverse);
 
             // Make a view matrix from the camera matrix.
-            var viewMatrix = m4.inverse(cameraMatrix);
+            const viewMatrix = m4.inverse(cameraMatrix);
 
-            var viewProjectionMatrix = m4.multiply(projectionMatrix, viewMatrix);
+            const viewProjectionMatrix = m4.multiply(projectionMatrix, viewMatrix);
 
             gl.useProgram(program);
 
