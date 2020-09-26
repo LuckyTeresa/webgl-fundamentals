@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>WebGL - 2D Image</title>
+    <link type="text/css" href="../css/webgl-tutorials.css" rel="stylesheet" />
+</head>
+<body>
+<canvas id="canvas"></canvas>
+</body>
+<script id="2d-vertex-shader" type="x-shader/x-vertex">
+attribute vec2 a_position;
+attribute vec2 a_texCoord;
+uniform vec2 u_resolution;
+varying vec2 v_texCoord;
+void main() {
+   // convert the rectangle from pixels to 0.0 to 1.0
+   vec2 zeroToOne = a_position / u_resolution;
+
+   // convert from 0->1 to 0->2
+   vec2 zeroToTwo = zeroToOne * 2.0;
+
+   // convert from 0->2 to -1->+1 (clipspace)
+   vec2 clipSpace = zeroToTwo - 1.0;
+   gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+
+   // pass the texCoord to the fragment shader
+   // The GPU will interpolate this value between points.
+   v_texCoord = a_texCoord;
+}
+</script>
+<script id="2d-fragment-shader" type="x-shader/x-fragment">
+precision mediump float;
+
+uniform sampler2D u_image;
+
+varying vec2 v_texCoord;
+
+void main() {
+//   gl_FragColor = texture2D(u_image, v_texCoord);
+//   以下方式将红色和蓝色对调
+   gl_FragColor = texture2D(u_image, v_texCoord).bgra;
+}
+</script>
+<script src="../lib/webgl-utils.js"></script>
+<script>
+    "use strict";
+    function main() {
+        const image = new Image();
+        image.src = "../css/leaves.jpg";
+        image.onload = function() {
+            render(image);
+        };
+    }
+
+    function render(image) {
+        const canvas = document.getElementById("canvas");
+        const gl = canvas.getContext("webgl");
+        if (!gl) {
+            return;
+        }
+        const program = webglUtils.createProgramFromScripts(gl, ["2d-vertex-shader", "2d-fragment-shader"]);
+        const positionLocation = gl.getAttribLocation(program, "a_position");
+        const texcoordLocation = gl.getAttribLocation(program, "a_texCoord");
+
+        // createBuffer => bindBuffer => bufferData
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        setRectangle(gl, 0, 0, image.width, image.height);
+
+        const texcoordBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+            0.0,  0.0,
+            1.0,  0.0,
+            0.0,  1.0,
+            0.0,  1.0,
+            1.0,  0.0,
+            1.0,  1.0,
+        ]), gl.STATIC_DRAW);
+
+        // createTexture => bindTexture => texParameteri => texImage2D
+        const texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        // 在shader中对Y轴进行翻转，图片坐标系统中Y轴向下，webgl中Y轴向上
+        // gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+        // 具体参数参见 《webgl编程指南》 p168
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+
+        const resolutionLocation = gl.getUniformLocation(program, "u_resolution");
+
+        // 做一些初始化的工作
+        webglUtils.resizeCanvasToDisplaySize(gl.canvas);
+        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.useProgram(program);
+
+        // 开始做传递数据的工作
+        gl.enableVertexAttribArray(positionLocation);
+        // 前面传递其他数据的时候将gl.ARRAY_BUFFER绑定点指向了其他地方
+        // 现在再次使用时应该将绑定点修正过来
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        let size = 2;          // 指定缓冲区中每个顶点的分量个数
+        let type = gl.FLOAT;   // the data is 32bit floats
+        let normalize = false; // don't normalize the data
+        let stride = 0;        // 相邻两个顶点间的字节数
+        let offset = 0;        // 偏移
+        gl.vertexAttribPointer(
+            positionLocation, size, type, normalize, stride, offset);
+
+        gl.enableVertexAttribArray(texcoordLocation);
+        gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+        size = 2;
+        type = gl.FLOAT;
+        normalize = false;
+        stride = 0;
+        offset = 0;
+        gl.vertexAttribPointer(
+            texcoordLocation, size, type, normalize, stride, offset);
+
+        gl.uniform2f(resolutionLocation, gl.canvas.width, gl.canvas.height);
+
+        const primitiveType = gl.TRIANGLES;
+        offset = 0;
+        const count = 6;
+        gl.drawArrays(primitiveType, offset, count);
+    }
+
+    function setRectangle(gl, x, y, width, height) {
+        const x1 = x;
+        const x2 = x + width;
+        const y1 = y;
+        const y2 = y + height;
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+            //  (x1,y2)    (x2,y2)
+            //
+            //
+            // (x1,y1)    (x2,y1)
+            x1, y1,
+            x2, y1,
+            x1, y2,
+            x1, y2,
+            x2, y1,
+            x2, y2,
+        ]), gl.STATIC_DRAW);
+    }
+
+    main();
+</script>
+</html>
+
+
