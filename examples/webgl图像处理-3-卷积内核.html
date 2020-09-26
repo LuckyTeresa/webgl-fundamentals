@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title></title>
+    <link type="text/css" href="../css/webgl-tutorials.css" rel="stylesheet" />
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="uiContainer">
+    <div id="ui"></div>
+</div>
+</body>
+<script id="2d-vertex-shader" type="x-shader/x-vertex">
+attribute vec2 a_position;
+attribute vec2 a_texCoord;
+uniform vec2 u_resolution;
+varying vec2 v_texCoord;
+
+void main() {
+   // convert the rectangle from pixels to 0.0 to 1.0
+   vec2 zeroToOne = a_position / u_resolution;
+
+   // convert from 0->1 to 0->2
+   vec2 zeroToTwo = zeroToOne * 2.0;
+
+   // convert from 0->2 to -1->+1 (clipspace)
+   vec2 clipSpace = zeroToTwo - 1.0;
+
+   gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+
+   v_texCoord = a_texCoord;
+}
+</script>
+<script id="2d-fragment-shader" type="x-shader/x-fragment">
+precision mediump float;
+uniform sampler2D u_image;
+uniform vec2 u_textureSize;
+uniform float u_kernel[9];
+uniform float u_kernelWeight;
+varying vec2 v_texCoord;
+
+void main() {
+   vec2 onePixel = vec2(1.0, 1.0) / u_textureSize;
+   vec4 colorSum =
+       texture2D(u_image, v_texCoord + onePixel * vec2(-1, -1)) * u_kernel[0] +
+       texture2D(u_image, v_texCoord + onePixel * vec2( 0, -1)) * u_kernel[1] +
+       texture2D(u_image, v_texCoord + onePixel * vec2( 1, -1)) * u_kernel[2] +
+       texture2D(u_image, v_texCoord + onePixel * vec2(-1,  0)) * u_kernel[3] +
+       texture2D(u_image, v_texCoord + onePixel * vec2( 0,  0)) * u_kernel[4] +
+       texture2D(u_image, v_texCoord + onePixel * vec2( 1,  0)) * u_kernel[5] +
+       texture2D(u_image, v_texCoord + onePixel * vec2(-1,  1)) * u_kernel[6] +
+       texture2D(u_image, v_texCoord + onePixel * vec2( 0,  1)) * u_kernel[7] +
+       texture2D(u_image, v_texCoord + onePixel * vec2( 1,  1)) * u_kernel[8] ;
+
+   gl_FragColor = vec4((colorSum / u_kernelWeight).rgb, 1);
+}
+</script>
+<script src="../lib/webgl-utils.js"></script>
+<script>
+    "use strict";
+    //卷积内核就是一个 3×3 的矩阵， 矩阵中的每一项代表当前处理的像素和周围8个像素的乘法因子，
+    // 相乘后将结果加起来除以内核权重（内核中所有值的和或 1.0 ，取二者中较大者）
+    function main() {
+        const image = new Image();
+        image.src = "../css/leaves.jpg";
+        image.onload = function() {
+            render(image);
+        };
+    }
+
+    function render(image) {
+        const canvas = document.getElementById("canvas");
+        const gl = canvas.getContext("webgl");
+        if (!gl) {
+            return;
+        }
+
+        const program = webglUtils.createProgramFromScripts(gl, ["2d-vertex-shader", "2d-fragment-shader"]);
+        const positionLocation = gl.getAttribLocation(program, "a_position");
+        const texcoordLocation = gl.getAttribLocation(program, "a_texCoord");
+
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        setRectangle( gl, 0, 0, image.width, image.height);
+
+        const texcoordBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+            0.0,  0.0,
+            1.0,  0.0,
+            0.0,  1.0,
+            0.0,  1.0,
+            1.0,  0.0,
+            1.0,  1.0,
+        ]), gl.STATIC_DRAW);
+
+        const texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+        const resolutionLocation = gl.getUniformLocation(program, "u_resolution");
+        const textureSizeLocation = gl.getUniformLocation(program, "u_textureSize");
+        const kernelLocation = gl.getUniformLocation(program, "u_kernel[0]");
+        const kernelWeightLocation = gl.getUniformLocation(program, "u_kernelWeight");
+
+        const kernels = {
+            normal: [
+                0, 0, 0,
+                0, 1, 0,
+                0, 0, 0
+            ],
+            gaussianBlur: [
+                0.045, 0.122, 0.045,
+                0.122, 0.332, 0.122,
+                0.045, 0.122, 0.045
+            ],
+            gaussianBlur2: [
+                1, 2, 1,
+                2, 4, 2,
+                1, 2, 1
+            ],
+            gaussianBlur3: [
+                0, 1, 0,
+                1, 1, 1,
+                0, 1, 0
+            ],
+            unsharpen: [
+                -1, -1, -1,
+                -1,  9, -1,
+                -1, -1, -1
+            ],
+            sharpness: [
+                0,-1, 0,
+                -1, 5,-1,
+                0,-1, 0
+            ],
+            sharpen: [
+                -1, -1, -1,
+                -1, 16, -1,
+                -1, -1, -1
+            ],
+            edgeDetect: [
+                -0.125, -0.125, -0.125,
+                -0.125,  1,     -0.125,
+                -0.125, -0.125, -0.125
+            ],
+            edgeDetect2: [
+                -1, -1, -1,
+                -1,  8, -1,
+                -1, -1, -1
+            ],
+            edgeDetect3: [
+                -5, 0, 0,
+                0, 0, 0,
+                0, 0, 5
+            ],
+            edgeDetect4: [
+                -1, -1, -1,
+                0,  0,  0,
+                1,  1,  1
+            ],
+            edgeDetect5: [
+                -1, -1, -1,
+                2,  2,  2,
+                -1, -1, -1
+            ],
+            edgeDetect6: [
+                -5, -5, -5,
+                -5, 39, -5,
+                -5, -5, -5
+            ],
+            sobelHorizontal: [
+                1,  2,  1,
+                0,  0,  0,
+                -1, -2, -1
+            ],
+            sobelVertical: [
+                1,  0, -1,
+                2,  0, -2,
+                1,  0, -1
+            ],
+            previtHorizontal: [
+                1,  1,  1,
+                0,  0,  0,
+                -1, -1, -1
+            ],
+            previtVertical: [
+                1,  0, -1,
+                1,  0, -1,
+                1,  0, -1
+            ],
+            boxBlur: [
+                0.111, 0.111, 0.111,
+                0.111, 0.111, 0.111,
+                0.111, 0.111, 0.111
+            ],
+            triangleBlur: [
+                0.0625, 0.125, 0.0625,
+                0.125,  0.25,  0.125,
+                0.0625, 0.125, 0.0625
+            ],
+            emboss: [
+                -2, -1,  0,
+                -1,  1,  1,
+                0,  1,  2
+            ]
+        };
+        const initialSelection = 'edgeDetect2';
+
+        // Setup UI to pick kernels.
+        const ui = document.getElementById("ui");
+        const select = document.createElement("select");
+        for (const name in kernels) {
+            const option = document.createElement("option");
+            option.value = name;
+            if (name === initialSelection) {
+                option.selected = true;
+            }
+            option.appendChild(document.createTextNode(name));
+            select.appendChild(option);
+        }
+        select.onchange = function(event) {
+            drawWithKernel(this.options[this.selectedIndex].value);
+        };
+        ui.appendChild(select);
+        drawWithKernel(initialSelection);
+
+        function computeKernelWeight(kernel) {
+            const weight = kernel.reduce(function(prev, curr) {
+                return prev + curr;
+            });
+            return weight <= 0 ? 1 : weight;
+        }
+
+        function drawWithKernel(name) {
+            webglUtils.resizeCanvasToDisplaySize(gl.canvas);
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            gl.clearColor(0, 0, 0, 0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.useProgram(program);
+
+            gl.enableVertexAttribArray(positionLocation);
+            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+            let size = 2;
+            let type = gl.FLOAT;
+            let normalize = false;
+            let stride = 0;
+            let offset = 0;
+            gl.vertexAttribPointer(
+                positionLocation, size, type, normalize, stride, offset);
+
+            gl.enableVertexAttribArray(texcoordLocation);
+            gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+            size = 2;
+            type = gl.FLOAT;
+            normalize = false;
+            stride = 0;
+            offset = 0;
+            gl.vertexAttribPointer(
+                texcoordLocation, size, type, normalize, stride, offset);
+
+            gl.uniform2f(resolutionLocation, gl.canvas.width, gl.canvas.height);
+            gl.uniform2f(textureSizeLocation, image.width, image.height);
+            gl.uniform1fv(kernelLocation, kernels[name]);
+            gl.uniform1f(kernelWeightLocation, computeKernelWeight(kernels[name]));
+
+            const primitiveType = gl.TRIANGLES;
+            offset = 0;
+            const count = 6;
+            gl.drawArrays(primitiveType, offset, count);
+        }
+    }
+
+    function setRectangle(gl, x, y, width, height) {
+        const x1 = x;
+        const x2 = x + width;
+        const y1 = y;
+        const y2 = y + height;
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+            x1, y1,
+            x2, y1,
+            x1, y2,
+            x1, y2,
+            x2, y1,
+            x2, y2,
+        ]), gl.STATIC_DRAW);
+    }
+
+    main();
+</script>
+</html>
