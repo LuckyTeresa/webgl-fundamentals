@@ -30,22 +30,19 @@ void main() {
         if (!gl) {
             return;
         }
-        // 初始化
         const program = webglUtils.createProgramFromScripts(gl, ["2d-vertex-shader", "2d-fragment-shader"]);
         gl.useProgram(program);
-        // 获取变量的位置
+
         const positionAttributeLocation = gl.getAttribLocation(program, "a_position");
         const colorLocation = gl.getUniformLocation(program, "u_color");
         const matrixLocation = gl.getUniformLocation(program, "u_matrix");
 
         const positionBuffer = gl.createBuffer();
-
         gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
 
-        // 传递u_matrix的数据
         const projectionMatrix = m3.projection(gl.canvas.width, gl.canvas.height);
         gl.uniformMatrix3fv(matrixLocation, false, projectionMatrix);
-        // 传递u_color的数据
+
         gl.uniform4fv(colorLocation, [1, 0, 0, 1]);
         gl.clearColor(0.0,0.0,0.0,1.0);
         gl.enableVertexAttribArray(positionAttributeLocation);
@@ -59,17 +56,14 @@ void main() {
             now *= 0.001;
 
             gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-
             gl.clear(gl.COLOR_BUFFER_BIT);
-
             gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
             const size = 2;
             const type = gl.FLOAT;
             const normalize = false;
             const stride = 0;
             const offset1 = 0;
-            gl.vertexAttribPointer(
-                positionAttributeLocation, size, type, normalize, stride, offset1);
+            gl.vertexAttribPointer(positionAttributeLocation, size, type, normalize, stride, offset1);
 
             const radius = Math.sqrt(gl.canvas.width * gl.canvas.width + gl.canvas.height * gl.canvas.height) * 0.5;//对角线的一半长
             const angle = now;
@@ -78,7 +72,6 @@ void main() {
             const centerX = gl.canvas.width  / 2;
             const centerY = gl.canvas.height / 2;
             setGeometry(gl, centerX + x, centerY + y, centerX - x, centerY - y);
-
 
             const primitiveType = gl.LINES;
             const offset = 0;
